@@ -1,0 +1,6 @@
+# Keep everything except the site itself out of the repo
+*.py
+!app.py
+!publish_week.py
+__pycache__/
+.env
