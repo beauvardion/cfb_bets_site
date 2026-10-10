@@ -1,2 +1,4 @@
-streamlit
+streamlit>=1.40
 pandas
+cfbd
+tzdata

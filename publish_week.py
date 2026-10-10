@@ -2,14 +2,13 @@
 publish_week.py
 ================================================================================
 Run AFTER total_bets.py. Copies this week's bets into the site's bets/ folder
-(named by the first game date, e.g. bets/2026-10-10.csv) and, optionally,
-pushes it to GitHub so the hosted site updates automatically.
+(named by the first game date, e.g. bets/2026-10-10.csv) and stamps the time it
+was posted, which the site shows as "Bets posted ...".
 ================================================================================
 """
 
-import shutil
 import subprocess
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -29,17 +28,19 @@ bets_dir = site_dir / "bets"
 bets_dir.mkdir(parents=True, exist_ok=True)
 
 df = pd.read_csv(BETS_FILE)
-dates = pd.to_datetime(df.get("game_date"), errors="coerce").dropna() if not df.empty else pd.Series(dtype="datetime64[ns]")
+dates = pd.to_datetime(df["game_date"], errors="coerce").dropna() if "game_date" in df else pd.Series(dtype="datetime64[ns]")
 week_label = dates.min().strftime("%Y-%m-%d") if len(dates) else date.today().isoformat()
 
+df["published_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
 dest = bets_dir / f"{week_label}.csv"
-shutil.copyfile(BETS_FILE, dest)
+df.to_csv(dest, index=False)
 print(f"Copied {len(df)} bets -> {dest}")
 if not AUTO_PUSH:
     print("NEXT: open GitHub Desktop -> type a summary -> Commit to main -> Push origin.")
 
 # ==============================================================================
-# PUSH
+# PUSH (only if AUTO_PUSH = True and Git is installed)
 # ==============================================================================
 if AUTO_PUSH:
     def git(*args):
