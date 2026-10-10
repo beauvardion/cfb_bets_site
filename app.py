@@ -239,7 +239,8 @@ def attach_state(wk: pd.DataFrame, results: pd.DataFrame, board: pd.DataFrame) -
     started = wk["kickoff"].notna() & (wk["kickoff"] <= now)
     started |= wk["kickoff"].isna() & (wk["game_date"] < today_et)
     wk["state"] = started.map({True: "started", False: "upcoming"})
-    for col in ("home_points", "away_points", "period", "clock", "tv", "result", "profit"):
+    for col in ("home_points", "away_points", "period", "clock", "tv", "result", "profit",
+                "current_line", "line_move"):
         wk[col] = pd.NA
 
     # Live scoreboard (also matches games where CFBD lists home/away the other way round)
@@ -261,6 +262,18 @@ def attach_state(wk: pd.DataFrame, results: pd.DataFrame, board: pd.DataFrame) -
             if g["status"] in ("in_progress", "completed"):
                 for col in ("home_points", "away_points", "period", "clock"):
                     wk.at[i, col] = g[col]
+
+    # Current line: grade_bets.py also records CFBD's latest total for games not
+    # played yet (closing_line) and how far it has moved for or against you (clv)
+    if not results.empty and "closing_line" in results.columns:
+        latest = results.dropna(subset=["closing_line"]).drop_duplicates(
+            ["home_team", "away_team", "pick", "line"], keep="last"
+        ).set_index(["home_team", "away_team", "pick", "line"])
+        for i, r in wk.iterrows():
+            key = (r["home_team"], r["away_team"], r["pick"], r["line"])
+            if key in latest.index:
+                wk.at[i, "current_line"] = latest.at[key, "closing_line"]
+                wk.at[i, "line_move"] = latest.at[key, "clv"]
 
     # Graded results win over everything (they're the official record)
     if not results.empty:
@@ -309,6 +322,7 @@ CARD_CSS = """<style>
 .betline .pick{font-size:1.45rem;font-weight:800}
 .betline .odds{color:#5B635D;font-size:.9rem}
 .why{margin-top:6px;font-size:.85rem;color:#5B635D}
+.current{margin-top:4px;font-size:.85rem;color:#5B635D}
 .status{margin-top:12px;padding-top:10px;border-top:1px dashed #E3E7E1;font-size:.88rem;color:#3A413C}
 .status .good{color:#1F7A3A;font-weight:700}
 .status .bad{color:#B3261E;font-weight:700}
@@ -373,6 +387,10 @@ def card_html(r, colors: dict) -> str:
     if pd.notna(r["model_total"]):
         why = f'<div class="why">Model total {r["model_total"]:g} · Edge {r["edge"]:+g} pts</div>'
 
+    current = ""
+    if state == "upcoming" and pd.notna(r["current_line"]):
+        current = f'<div class="current">Current line {r["current_line"]:g}</div>'
+
     return (
         f'<div class="bet-card{closed}">'
         f'<div class="stripe" style="background:linear-gradient(90deg,{away_c} 0 50%,{home_c} 50% 100%)"></div>'
@@ -386,6 +404,7 @@ def card_html(r, colors: dict) -> str:
         f'<div class="betline"><span class="pick">{html.escape(str(r["pick"]))} {r["line"]:g}</span>'
         f'<span class="odds">{fmt_odds(r["odds"])} · {html.escape(str(r["book"]))}</span></div>'
         f'{why}'
+        f'{current}'
         f'<div class="status">{status_html(r)}</div>'
         f'</div></div>'
     )
