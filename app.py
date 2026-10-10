@@ -32,6 +32,28 @@ FALLBACK_COLOR = "#9AA0A6"
 st.set_page_config(page_title="CFB Best Bets", page_icon="🏈", layout="wide")
 
 
+def to_local_date(s: pd.Series) -> pd.Series:
+    """Turn any game_date format into a plain calendar date (no timezone).
+
+    Handles '2026-10-10', '2026-10-10 19:30:00-04:00', '2026-10-10T23:30:00Z',
+    and files that mix those formats. The date is kept as written (the timezone
+    is dropped, not converted), so a 7:30 PM ET game stays on its own day.
+    """
+    def one(x):
+        if x is None or (not isinstance(x, str) and pd.isna(x)):
+            return pd.NaT
+        try:
+            t = pd.Timestamp(x)
+        except (ValueError, TypeError):
+            return pd.NaT
+        if t is pd.NaT:
+            return pd.NaT
+        if t.tzinfo is not None:
+            t = t.tz_localize(None)
+        return t.normalize()
+    return pd.to_datetime(s.map(one), errors="coerce")
+
+
 # ==============================================================================
 # LOADING
 # ==============================================================================
@@ -51,8 +73,8 @@ def load_all_weeks() -> pd.DataFrame:
     for col in ("kickoff_utc", "season", "week", "model_total", "edge", "published_at"):
         if col not in df.columns:
             df[col] = pd.NA
-    df["kickoff"] = pd.to_datetime(df["kickoff_utc"], utc=True, errors="coerce")
-    df["game_date"] = pd.to_datetime(df["game_date"], errors="coerce")
+    df["kickoff"] = pd.to_datetime(df["kickoff_utc"], utc=True, errors="coerce", format="mixed")
+    df["game_date"] = to_local_date(df["game_date"])
     return df
 
 
@@ -61,7 +83,7 @@ def load_results() -> pd.DataFrame:
     if not RESULTS_PATH.exists():
         return pd.DataFrame()
     df = pd.read_csv(RESULTS_PATH)
-    df["game_date"] = pd.to_datetime(df["game_date"], errors="coerce")
+    df["game_date"] = to_local_date(df["game_date"])
     return df
 
 
@@ -408,13 +430,13 @@ def render_week(wk: pd.DataFrame, is_latest: bool, view: str):
 
     # --- last updated line ----------------------------------------------------
     parts = []
-    posted = pd.to_datetime(wk["published_at"], utc=True, errors="coerce").dropna()
+    posted = pd.to_datetime(wk["published_at"], utc=True, errors="coerce", format="mixed").dropna()
     if len(posted):
         parts.append(f"Bets posted {fmt_day_time(posted.max())}")
     if fetched_at is not None:
         parts.append(f"Live scores updated {fmt_ago(fetched_at)}")
     if not results.empty and "graded_at" in results.columns:
-        graded = pd.to_datetime(results["graded_at"], utc=True, errors="coerce").dropna()
+        graded = pd.to_datetime(results["graded_at"], utc=True, errors="coerce", format="mixed").dropna()
         if len(graded):
             parts.append(f"Results graded {fmt_day_time(graded.max())}")
     if parts:

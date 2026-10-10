@@ -1,0 +1,15 @@
+week_of,season,week,game_date,kickoff_utc,away_team,home_team,pick,line,odds,book,units,model_total,edge,home_score,away_score,final_total,result,profit,closing_line,clv,graded_at
+2026-10-08,2026,,2026-10-08,,South Alabama,Arkansas State,Under,59.0,-110.0,Bovada,1,,,49.0,56.0,105.0,Loss,-1.0,60.25,-1.2,2026-10-10T00:09:32Z
+2026-10-08,2026,,2026-10-08,,Sam Houston,Liberty,Under,52.5,-108.0,BetMGM,1,,,35.0,3.0,38.0,Win,0.93,52.75,-0.2,2026-10-10T00:09:32Z
+2026-10-08,2026,,2026-10-08,,South Florida,UTSA,Under,50.5,-110.0,FanDuel,1,,,31.0,24.0,55.0,Loss,-1.0,49.5,1.0,2026-10-10T00:09:32Z
+2026-10-08,2026,,2026-10-08,,Missouri State,Western Kentucky,Under,56.5,-106.0,FanDuel,1,,,34.0,13.0,47.0,Win,0.94,56.75,-0.2,2026-10-10T00:09:32Z
+2026-10-08,2026,,2026-10-09,,Florida State,Louisville,Under,60.5,-110.0,FanDuel,1,,,,,,Pending,,60.5,0.0,2026-10-10T00:09:32Z
+2026-10-08,2026,,2026-10-10,,Virginia Tech,California,Under,54.0,-110.0,BetUS,1,,,,,,Pending,,53.25,0.8,2026-10-10T00:09:32Z
+2026-10-08,2026,,2026-10-10,,Houston,Kansas State,Under,56.0,-113.0,BetRivers,1,,,,,,Pending,,55.25,0.8,2026-10-10T00:09:32Z
+2026-10-08,2026,,2026-10-10,,Louisiana,Louisiana Tech,Under,48.5,-115.0,BetMGM,2,,,,,,Pending,,48.25,0.2,2026-10-10T00:09:32Z
+2026-10-08,2026,,2026-10-10,,Coastal Carolina,Marshall,Under,59.5,-115.0,BetRivers,1,,,,,,Pending,,58.75,0.8,2026-10-10T00:09:32Z
+2026-10-08,2026,,2026-10-10,,Stanford,Notre Dame,Under,55.0,-113.0,BetRivers,1,,,,,,Pending,,54.5,0.5,2026-10-10T00:09:32Z
+2026-10-08,2026,,2026-10-10,,UCLA,Oregon,Under,58.5,-110.0,BetRivers,2,,,,,,Pending,,58.25,0.2,2026-10-10T00:09:32Z
+2026-10-08,2026,,2026-10-10,,North Carolina,Pittsburgh,Over,47.0,-108.0,LowVig.ag,1,,,,,,Pending,,47.25,0.2,2026-10-10T00:09:32Z
+2026-10-08,2026,,2026-10-10,,North Dakota State,UNLV,Under,48.5,-118.0,FanDuel,1,,,,,,Pending,,47.5,1.0,2026-10-10T00:09:32Z
+2026-10-08,2026,,2026-10-10,,Ole Miss,Vanderbilt,Under,59.5,-110.0,MyBookie.ag,1,,,,,,Pending,,54.5,5.0,2026-10-10T00:09:32Z

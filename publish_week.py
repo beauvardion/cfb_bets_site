@@ -28,8 +28,9 @@ bets_dir = site_dir / "bets"
 bets_dir.mkdir(parents=True, exist_ok=True)
 
 df = pd.read_csv(BETS_FILE)
-dates = pd.to_datetime(df["game_date"], errors="coerce").dropna() if "game_date" in df else pd.Series(dtype="datetime64[ns]")
-week_label = dates.min().strftime("%Y-%m-%d") if len(dates) else date.today().isoformat()
+dates = [pd.Timestamp(x) for x in df.get("game_date", pd.Series(dtype=object)).dropna()]
+dates = [d.tz_localize(None) if d.tzinfo is not None else d for d in dates]
+week_label = min(dates).strftime("%Y-%m-%d") if dates else date.today().isoformat()
 
 df["published_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
