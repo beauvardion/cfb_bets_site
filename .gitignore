@@ -2,6 +2,7 @@
 *.py
 !app.py
 !publish_week.py
+!grade_bets.py
 __pycache__/
 .env
 .streamlit/secrets.toml

@@ -1,0 +1,52 @@
+# Runs grade_bets.py every morning at 8:00 AM Eastern and pushes the new
+# results.csv, so the site shows yesterday's results and today's current lines.
+# You can also run it any time: GitHub repo -> Actions -> Daily refresh -> Run workflow.
+
+name: Daily refresh
+
+on:
+  schedule:
+    # GitHub schedules use UTC. 8:00 AM Eastern is 12:00 UTC during daylight
+    # time (March-October) and 13:00 UTC during standard time (November-February).
+    - cron: "0 12 * 3-10 *"
+    - cron: "0 13 * 11,12,1,2 *"
+  workflow_dispatch:   # adds a "Run workflow" button for manual runs
+
+permissions:
+  contents: write      # lets the workflow push results.csv
+
+concurrency:
+  group: daily-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get the site files
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install packages
+        run: pip install pandas numpy cfbd
+
+      - name: Grade bets and update current lines
+        env:
+          CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
+        run: python grade_bets.py
+
+      - name: Commit and push results.csv (only if it changed)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add results.csv
+          if git diff --cached --quiet; then
+            echo "No changes to results.csv."
+          else
+            git commit -m "Daily refresh $(date -u +%Y-%m-%d)"
+            git push
+          fi
