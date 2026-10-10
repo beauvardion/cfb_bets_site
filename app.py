@@ -564,8 +564,11 @@ with tab_history:
             }
             for t, g in done.groupby("Type")
         ]).sort_values("Type", ascending=False)
-        st.dataframe(styled(by_type, signed_cols=["Profit (u)", "ROI %", "Avg CLV"]),
-                     hide_index=True, width="stretch")
+        st.dataframe(
+            styled(by_type, signed_cols=["Profit (u)", "ROI %", "Avg CLV"])
+            .format({"Profit (u)": "{:+.2f}", "ROI %": "{:+.2f}", "Avg CLV": "{:+.2f}"}, na_rep="–"),
+            hide_index=True, width="stretch",
+        )
 
         st.subheader("Completed bets")
         table = done.sort_values("game_date", ascending=False).copy()
