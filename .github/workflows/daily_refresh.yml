@@ -1,4 +1,4 @@
-# Runs grade_bets.py every morning at 8:00 AM Eastern and pushes the new
+# Runs grade_bets.py every morning at 4:35 AM Eastern (backup run at 5:55 AM) and pushes the new
 # results.csv, so the site shows yesterday's results and today's current lines.
 # You can also run it any time: GitHub repo -> Actions -> Daily refresh -> Run workflow.
 
@@ -6,10 +6,16 @@ name: Daily refresh
 
 on:
   schedule:
-    # GitHub schedules use UTC. 8:00 AM Eastern is 12:00 UTC during daylight
-    # time (March-October) and 13:00 UTC during standard time (November-February).
-    - cron: "0 12 * 3-10 *"
-    - cron: "0 13 * 11,12,1,2 *"
+    # GitHub schedules use UTC. Eastern is UTC-4 March-October (daylight time)
+    # and UTC-5 November-February (standard time).
+    # Minutes are kept off the top of the hour, when GitHub is busiest and most
+    # likely to delay or skip scheduled runs.
+    #   4:35 AM Eastern  (main run)
+    - cron: "35 8 * 3-10 *"
+    - cron: "35 9 * 11,12,1,2 *"
+    #   5:55 AM Eastern  (backup, in case the main run is delayed or skipped)
+    - cron: "55 9 * 3-10 *"
+    - cron: "55 10 * 11,12,1,2 *"
   workflow_dispatch:   # adds a "Run workflow" button for manual runs
 
 permissions:
