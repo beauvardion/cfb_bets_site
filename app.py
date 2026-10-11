@@ -17,6 +17,7 @@ import html
 from datetime import datetime, timezone
 from pathlib import Path
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -188,17 +189,39 @@ def fmt_countdown(ts) -> str:
     return f"Kicks off in {max(m, 1)}m"
 
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_calendar(season: int) -> list:
+    """CFBD's week calendar for a season (used only for older bet files that
+    don't have a week number saved in them). One API call per day at most."""
+    try:
+        api_key = st.secrets["CFBD_API_KEY"]
+        import cfbd
+        api = cfbd.GamesApi(cfbd.ApiClient(cfbd.Configuration(access_token=api_key)))
+        return [(w.week, pd.Timestamp(w.start_date).date(), pd.Timestamp(w.end_date).date())
+                for w in api.get_calendar(year=season)]
+    except Exception:
+        return []
+
+
 def week_label(df: pd.DataFrame, stem: str) -> str:
-    dates = df["game_date"].dropna()
-    rng = ""
-    if len(dates):
-        a, b = dates.min(), dates.max()
-        rng = f"{a:%b} {a.day}" if a == b else (
-            f"{a:%b} {a.day}–{b.day}" if a.month == b.month else f"{a:%b} {a.day} – {b:%b} {b.day}")
+    """'Week 7'. Uses the week saved in the file; for older files without one,
+    looks the first game date up in CFBD's calendar."""
     wk = df["week"].dropna()
     if len(wk):
-        return f"Week {int(wk.iloc[0])} · {rng}"
-    return rng or stem
+        return f"Week {int(wk.iloc[0])}"
+    dates = df["game_date"].dropna()
+    if len(dates):
+        d = dates.min()
+        season = d.year if d.month >= 7 else d.year - 1
+        calendar = load_calendar(season)
+        for week, start, end in calendar:
+            if start <= d.date() <= end:
+                return f"Week {week}"
+        later = [w for w in calendar if w[1] >= d.date()]
+        if later:
+            return f"Week {min(later, key=lambda w: w[1])[0]}"
+        return f"Week Of {d:%b} {d.day}"
+    return stem
 
 
 def grade(pick: str, line: float, total: float) -> str:
@@ -431,7 +454,7 @@ def table_view(wk: pd.DataFrame) -> pd.DataFrame:
         "Odds": wk["odds"].map(fmt_odds),
         "Book": wk["book"],
         "Units": wk["units"].astype(int),
-        "Model total": wk["model_total"],
+        "Model Total": wk["model_total"],
         "Edge": wk["edge"],
         "Status": wk.apply(status, axis=1),
     })
@@ -466,10 +489,10 @@ def render_week(wk: pd.DataFrame, is_latest: bool, view: str):
     pending_units = int(wk.loc[wk["state"] != "final", "units"].sum())
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Bets", len(wk))
-    c2.metric("Units risked", int(wk["units"].sum()))
-    c3.metric("Record this week", record(done) if len(done) else "–")
-    c4.metric("Profit this week", f"{done['profit'].sum():+.2f}u" if len(done) else "–")
-    c5.metric("Units still pending", pending_units)
+    c2.metric("Units Risked", int(wk["units"].sum()))
+    c3.metric("Record This Week", record(done) if len(done) else "–")
+    c4.metric("Profit This Week", f"{done['profit'].sum():+.2f}u" if len(done) else "–")
+    c5.metric("Units Still Pending", pending_units)
 
     # --- bets -------------------------------------------------------------------
     if view == "Cards":
@@ -482,7 +505,7 @@ def render_week(wk: pd.DataFrame, is_latest: bool, view: str):
             table, hide_index=True, width="stretch",
             height=36 * (len(table) + 1) + 4,   # tall enough to show every row
             column_config={
-                "Model total": st.column_config.NumberColumn(format="%.1f"),
+                "Model Total": st.column_config.NumberColumn(format="%.1f"),
                 "Edge": st.column_config.NumberColumn(format="%+.1f"),
             },
         )
@@ -492,7 +515,7 @@ def render_week(wk: pd.DataFrame, is_latest: bool, view: str):
 # PAGE
 # ==============================================================================
 all_bets = load_all_weeks()
-st.title("CFB best bets")
+st.title("CFB Best Bets")
 
 if all_bets.empty:
     st.info("No bets posted yet. Run publish_week.py to add this week's file to the bets folder.")
@@ -501,7 +524,7 @@ if all_bets.empty:
 weeks = sorted(all_bets["week_of"].unique(), reverse=True)
 labels = {w: week_label(all_bets[all_bets["week_of"] == w], w) for w in weeks}
 
-tab_week, tab_history = st.tabs(["This week", "History"])
+tab_week, tab_history = st.tabs(["Picks By Week", "History"])
 
 with tab_week:
     left, right = st.columns([3, 1])
@@ -563,48 +586,68 @@ with tab_history:
         c3.metric("ROI", f"{roi(done):+.1f}%")
         clv_known = done["clv"].dropna()
         c4.metric("Avg CLV", f"{clv_known.mean():+.2f} pts" if len(clv_known) else "–")
-        c5.metric("Beat the close", f"{(clv_known > 0).mean() * 100:.0f}%" if len(clv_known) else "–")
+        c5.metric("Beat The Close", f"{(clv_known > 0).mean() * 100:.0f}%" if len(clv_known) else "–")
 
-        st.subheader("Profit over time")
+        st.subheader("Profit Over Time")
         daily = (done.groupby("game_date")["profit"].sum().sort_index().cumsum()
-                 .rename("Cumulative profit (units)"))
-        st.line_chart(daily, x_label="Game date", y_label="Units")
+                 .reset_index(name="profit"))
+        # Plain date labels ("Oct 8"), one evenly spaced point per game day
+        daily["Date"] = daily["game_date"].map(lambda d: f"{d:%b} {d.day}")
+        daily["Profit (Units)"] = daily["profit"].round(2)
+        x = alt.X("Date:O", sort=None, title="Date",
+                  axis=alt.Axis(labelAngle=-45, labelOverlap=True))
+        line = alt.Chart(daily).mark_line(color="#1F5C3A", strokeWidth=2.5,
+                                          point=alt.OverlayMarkDef(color="#1F5C3A", size=45)).encode(
+            x=x,
+            y=alt.Y("Profit (Units):Q", title="Profit (Units)"),
+            tooltip=[alt.Tooltip("Date:O"), alt.Tooltip("Profit (Units):Q", format="+.2f")],
+        )
+        zero = alt.Chart(pd.DataFrame({"y": [0]})).mark_rule(
+            color="#8A928C", strokeDash=[6, 4], strokeWidth=1.5).encode(y="y:Q")
+        st.altair_chart((zero + line).properties(height=320), width="stretch")
 
-        st.subheader("By bet type")
-        done["Type"] = done["pick"] + " " + done["units"].astype(int).astype(str) + "u"
+        st.subheader("By Bet Type")
+        pick_lc = done["pick"].str.lower()
+        units_int = done["units"].astype(int)
+        groups = [("All Bets", done), ("Unders", done[pick_lc == "under"]),
+                  ("Overs", done[pick_lc == "over"])]
+        groups += [(f"{u}U", done[units_int == u]) for u in (1, 2, 3)]
+        groups += [(f"{side.title()} {u}U", done[(pick_lc == side) & (units_int == u)])
+                   for side in ("under", "over") for u in (1, 2, 3)]
         by_type = pd.DataFrame([
             {
-                "Type": t,
+                "Bet Type": name,
                 "Bets": len(g),
                 "Record": record(g),
-                "Profit (u)": round(g["profit"].sum(), 2),
-                "ROI %": round(roi(g), 1),
+                "Profit (Units)": round(g["profit"].sum(), 2),
+                "ROI %": round(roi(g), 2),
                 "Avg CLV": round(g["clv"].mean(), 2) if g["clv"].notna().any() else None,
             }
-            for t, g in done.groupby("Type")
-        ]).sort_values("Type", ascending=False)
+            for name, g in groups if len(g)   # only bet types that have been bet
+        ])
         st.dataframe(
-            styled(by_type, signed_cols=["Profit (u)", "ROI %", "Avg CLV"])
-            .format({"Profit (u)": "{:+.2f}", "ROI %": "{:+.2f}", "Avg CLV": "{:+.2f}"}, na_rep="–"),
+            styled(by_type, signed_cols=["Profit (Units)", "ROI %", "Avg CLV"])
+            .format({"Profit (Units)": "{:+.2f}", "ROI %": "{:+.2f}", "Avg CLV": "{:+.2f}"}, na_rep="–"),
             hide_index=True, width="stretch",
+            height=36 * (len(by_type) + 1) + 4,
         )
 
-        st.subheader("Completed bets")
+        st.subheader("Completed Bets")
         table = done.sort_values("game_date", ascending=False).copy()
         table["Date"] = short_date(table["game_date"])
         table["Game"] = table["away_team"] + " @ " + table["home_team"]
         table["Bet"] = table["pick"] + " " + table["line"].map(lambda v: f"{v:g}")
         table["Odds"] = table["odds"].map(fmt_odds)
         table = table.rename(columns={
-            "book": "Book", "units": "Units", "final_total": "Final total",
-            "result": "Result", "profit": "Profit (u)", "closing_line": "Closing line",
-            "clv": "CLV (pts)",
-        })[["Date", "Game", "Bet", "Odds", "Book", "Units", "Final total",
-            "Result", "Profit (u)", "Closing line", "CLV (pts)"]]
+            "book": "Book", "units": "Units", "final_total": "Final Total",
+            "result": "Result", "profit": "Profit (Units)", "closing_line": "Closing Line",
+            "clv": "CLV (Pts)",
+        })[["Date", "Game", "Bet", "Odds", "Book", "Units", "Final Total",
+            "Result", "Profit (Units)", "Closing Line", "CLV (Pts)"]]
         st.dataframe(
-            styled(table, result_cols=["Result"], signed_cols=["Profit (u)", "CLV (pts)"])
-            .format({"Profit (u)": "{:+.2f}", "CLV (pts)": "{:+.1f}",
-                     "Closing line": "{:g}", "Final total": "{:.0f}"}, na_rep="–"),
+            styled(table, result_cols=["Result"], signed_cols=["Profit (Units)", "CLV (Pts)"])
+            .format({"Profit (Units)": "{:+.2f}", "CLV (Pts)": "{:+.1f}",
+                     "Closing Line": "{:g}", "Final Total": "{:.0f}"}, na_rep="–"),
             hide_index=True, width="stretch",
             height=36 * (len(table) + 1) + 4,
         )
