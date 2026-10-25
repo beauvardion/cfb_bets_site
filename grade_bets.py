@@ -54,6 +54,7 @@ DEFAULT_ODDS = -110                           # used only if a bet has no odds r
 # ==============================================================================
 # LOAD ALL BETS
 # ==============================================================================
+SCRIPT_STARTED_AT = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 site_dir = Path(SITE_DIR)
 bet_files = sorted((site_dir / "bets").glob("*.csv"))
 frames = []
@@ -185,10 +186,22 @@ out_cols = ["week_of", "season", "week", "game_date", "kickoff_utc", "away_team"
 graded = graded.reindex(columns=list(dict.fromkeys(list(graded.columns) + out_cols)))
 graded = graded.sort_values(["game_date", "home_team"])[out_cols]
 graded["graded_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+# (the refresh's start/finish times are saved separately in last_refresh.json, below)
 graded["game_date"] = graded["game_date"].dt.strftime("%Y-%m-%d")
 
 out_path = site_dir / "results.csv"
 graded.to_csv(out_path, index=False)
+
+# When this refresh started, when it finished, and what started it. The site
+# shows this as "Results updated ... (started ...)".
+import json
+refresh_info = {
+    "started_at": os.environ.get("REFRESH_STARTED_AT") or SCRIPT_STARTED_AT,
+    "finished_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    # schedule = the automatic 4:35 AM run; workflow_dispatch = Run workflow button
+    "trigger": os.environ.get("REFRESH_TRIGGER") or "local",
+}
+(site_dir / "last_refresh.json").write_text(json.dumps(refresh_info, indent=2))
 
 done_df = graded[graded["result"].isin(["Win", "Loss", "Push"])]
 print("=" * 78)

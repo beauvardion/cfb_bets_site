@@ -24,6 +24,7 @@ import streamlit as st
 SITE = Path(__file__).parent
 BETS_DIR = SITE / "bets"
 RESULTS_PATH = SITE / "results.csv"
+REFRESH_PATH = SITE / "last_refresh.json"
 COLORS_PATH = SITE / "team_colors.csv"
 ET = "America/New_York"
 LIVE_REFRESH_SECONDS = 120      # how often live scores refresh (also how long they're cached)
@@ -86,6 +87,44 @@ def load_results() -> pd.DataFrame:
     df = pd.read_csv(RESULTS_PATH)
     df["game_date"] = to_local_date(df["game_date"])
     return df
+
+
+@st.cache_data(ttl=600)
+def load_refresh_info() -> dict:
+    """When the last results refresh started and finished, and what started it
+    (written by grade_bets.py)."""
+    try:
+        import json
+        return json.loads(REFRESH_PATH.read_text())
+    except Exception:
+        return {}
+
+
+def refresh_text(results: pd.DataFrame) -> str:
+    """'Results updated Sun Oct 25, 4:41 AM ET (started 4:39 AM ET by the daily schedule)'."""
+    info = load_refresh_info()
+    finished = pd.to_datetime(info.get("finished_at"), utc=True, errors="coerce")
+    started = pd.to_datetime(info.get("started_at"), utc=True, errors="coerce")
+    if pd.notna(finished):
+        how = {"schedule": "by the daily schedule",
+               "workflow_dispatch": "manually",
+               "push": "by a new push"}.get(info.get("trigger"), "manually")
+        start_txt = ""
+        if pd.notna(started):
+            s_et, f_et = et(started), et(finished)
+            same_day = s_et.date() == f_et.date()
+            start_txt = (f"{s_et.strftime('%I').lstrip('0')}:{s_et:%M} {s_et:%p} ET" if same_day
+                         else fmt_day_time(started))
+            start_txt = f"started {start_txt} {how}"
+        else:
+            start_txt = f"run {how}"
+        return f"Results updated {fmt_day_time(finished)} ({start_txt})"
+    # Older results.csv without last_refresh.json
+    if not results.empty and "graded_at" in results.columns:
+        g = pd.to_datetime(results["graded_at"], utc=True, errors="coerce", format="mixed").dropna()
+        if len(g):
+            return f"Results updated {fmt_day_time(g.max())}"
+    return ""
 
 
 @st.cache_data(ttl=3600)
@@ -477,10 +516,9 @@ def render_week(wk: pd.DataFrame, is_latest: bool, view: str):
         parts.append(f"Bets posted {fmt_day_time(posted.max())}")
     if fetched_at is not None:
         parts.append(f"Live scores updated {fmt_ago(fetched_at)}")
-    if not results.empty and "graded_at" in results.columns:
-        graded = pd.to_datetime(results["graded_at"], utc=True, errors="coerce", format="mixed").dropna()
-        if len(graded):
-            parts.append(f"Results graded {fmt_day_time(graded.max())}")
+    upd = refresh_text(results)
+    if upd:
+        parts.append(upd)
     if parts:
         st.caption(" · ".join(parts))
 
@@ -573,6 +611,10 @@ with tab_history:
     if results.empty:
         st.info("No graded bets yet. Run grade_bets.py after the games finish, then commit and push.")
         st.stop()
+
+    upd = refresh_text(results)
+    if upd:
+        st.caption(upd)
 
     done = results[results["result"].isin(["Win", "Loss", "Push"])].copy()
     pending = results[results["result"] == "Pending"].copy()
