@@ -59,7 +59,7 @@ def to_local_date(s: pd.Series) -> pd.Series:
 # ==============================================================================
 # LOADING
 # ==============================================================================
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=60)  # re-read files at most once a minute
 def load_all_weeks() -> pd.DataFrame:
     frames = []
     for path in sorted(BETS_DIR.glob("*.csv")):
@@ -80,7 +80,7 @@ def load_all_weeks() -> pd.DataFrame:
     return df
 
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=60)  # re-read files at most once a minute
 def load_results() -> pd.DataFrame:
     if not RESULTS_PATH.exists():
         return pd.DataFrame()
@@ -89,7 +89,7 @@ def load_results() -> pd.DataFrame:
     return df
 
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=60)  # re-read files at most once a minute
 def load_refresh_info() -> dict:
     """When the last results refresh started and finished, and what started it
     (written by grade_bets.py)."""
