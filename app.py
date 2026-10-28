@@ -107,6 +107,8 @@ def refresh_text(results: pd.DataFrame) -> str:
     started = pd.to_datetime(info.get("started_at"), utc=True, errors="coerce")
     if pd.notna(finished):
         how = {"schedule": "by the daily schedule",
+               "scheduled": "by the daily schedule",
+               "manual": "manually",
                "workflow_dispatch": "manually",
                "push": "by a new push"}.get(info.get("trigger"), "manually")
         start_txt = ""

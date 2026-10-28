@@ -1,19 +1,20 @@
-# Runs grade_bets.py every morning at 4:35 AM Eastern and pushes the new
-# results.csv, so the site shows yesterday's results and today's current lines.
-# You can also run it any time: GitHub repo -> Actions -> Daily refresh -> Run workflow.
+# Runs grade_bets.py and pushes the new results.csv, so the site shows
+# yesterday's results and today's current lines.
+#
+# Started every morning at 4:35 AM Eastern by cron-job.org, which calls GitHub's
+# "run workflow" API (GitHub's own schedule was starting runs hours late).
+# cron-job.org sends source=scheduled; the Run workflow button defaults to manual.
+# You can still run it any time: GitHub repo -> Actions -> Daily refresh -> Run workflow.
 
 name: Daily refresh
 
 on:
-  schedule:
-    # GitHub schedules use UTC. Eastern is UTC-4 March-October (daylight time)
-    # and UTC-5 November-February (standard time).
-    # Minutes are kept off the top of the hour, when GitHub is busiest and most
-    # likely to delay or skip scheduled runs.
-    #   4:35 AM Eastern
-    - cron: "35 8 * 3-10 *"
-    - cron: "35 9 * 11,12,1,2 *"
-  workflow_dispatch:   # adds a "Run workflow" button for manual runs
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "What started this run (cron-job.org sends 'scheduled')"
+        required: false
+        default: "manual"
 
 permissions:
   contents: write      # lets the workflow push results.csv
@@ -43,7 +44,7 @@ jobs:
       - name: Grade bets and update current lines
         env:
           CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
-          REFRESH_TRIGGER: ${{ github.event_name }}
+          REFRESH_TRIGGER: ${{ github.event.inputs.source || github.event_name }}
         run: python grade_bets.py
 
       - name: Commit and push results.csv and last_refresh.json
