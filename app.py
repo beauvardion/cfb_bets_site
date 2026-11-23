@@ -331,10 +331,11 @@ def attach_state(wk: pd.DataFrame, results: pd.DataFrame, board: pd.DataFrame) -
     # played yet (closing_line) and how far it has moved for or against you (clv)
     if not results.empty and "closing_line" in results.columns:
         latest = results.dropna(subset=["closing_line"]).drop_duplicates(
-            ["home_team", "away_team", "pick", "line"], keep="last"
-        ).set_index(["home_team", "away_team", "pick", "line"])
+            ["week_of", "home_team", "away_team", "pick", "line"], keep="last"
+        ).set_index(["week_of", "home_team", "away_team", "pick", "line"])
         for i, r in wk.iterrows():
-            key = (r["home_team"], r["away_team"], r["pick"], r["line"])
+            # week_of keeps a rematch from picking up another week's row
+            key = (r["week_of"], r["home_team"], r["away_team"], r["pick"], r["line"])
             if key in latest.index:
                 wk.at[i, "current_line"] = latest.at[key, "closing_line"]
                 wk.at[i, "line_move"] = latest.at[key, "clv"]
@@ -342,9 +343,9 @@ def attach_state(wk: pd.DataFrame, results: pd.DataFrame, board: pd.DataFrame) -
     # Graded results win over everything (they're the official record)
     if not results.empty:
         graded = results[results["result"].isin(["Win", "Loss", "Push"])]
-        graded = graded.set_index(["home_team", "away_team", "pick", "line"])
+        graded = graded.set_index(["week_of", "home_team", "away_team", "pick", "line"])
         for i, r in wk.iterrows():
-            key = (r["home_team"], r["away_team"], r["pick"], r["line"])
+            key = (r["week_of"], r["home_team"], r["away_team"], r["pick"], r["line"])
             if key in graded.index:
                 g = graded.loc[key]
                 g = g.iloc[0] if isinstance(g, pd.DataFrame) else g

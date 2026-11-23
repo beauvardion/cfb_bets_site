@@ -112,6 +112,10 @@ for season in sorted(bets["season"].dropna().unique().astype(int)):
                 "away_team": g.away_team,
                 "home_score": g.home_score,
                 "away_score": g.away_score,
+                # Game day in Eastern time, so rematches (same teams, same home
+                # field, same season) are told apart by date
+                "cfbd_game_day": (pd.Timestamp(g.start_date).tz_convert("America/New_York")
+                                  .tz_localize(None).normalize() if g.start_date else pd.NaT),
                 "closing_totals": [float(t) for t in totals],
             })
         print(f"  {season} {season_type}: {len(games)} games")
@@ -121,11 +125,22 @@ lines = pd.DataFrame(rows)
 # Allow for home/away being listed the other way round
 flipped = lines.rename(columns={"home_team": "away_team", "away_team": "home_team",
                                 "home_score": "away_score", "away_score": "home_score"})
-lookup = pd.concat([lines, flipped], ignore_index=True).drop_duplicates(
-    subset=["season", "home_team", "away_team"]
-)
+lookup = pd.concat([lines, flipped], ignore_index=True)
 
-graded = bets.merge(lookup, on=["season", "home_team", "away_team"], how="left")
+# Match each bet to the CFBD game with the same teams AND the nearest date
+# (within 3 days). Teams alone aren't enough: a rematch later in the season,
+# e.g. a conference championship at the same stadium, has the same season,
+# home team and away team as the earlier game.
+MAX_DAYS_APART = 3
+bets = bets.reset_index(drop=True)
+bets["_bet"] = bets.index
+cand = bets[["_bet", "season", "home_team", "away_team", "game_date"]].merge(
+    lookup, on=["season", "home_team", "away_team"], how="inner")
+cand["_days"] = (cand["cfbd_game_day"] - cand["game_date"]).abs().dt.days
+cand = cand[cand["_days"] <= MAX_DAYS_APART].sort_values(["_bet", "_days"])
+best = cand.drop_duplicates("_bet").drop(columns=["season", "home_team", "away_team",
+                                                  "game_date", "_days", "cfbd_game_day"])
+graded = bets.merge(best, on="_bet", how="left").drop(columns="_bet")
 
 
 def pick_closing_line(totals, pick):
